@@ -50,7 +50,7 @@ VALUES ($1);
 
 func (s *PostgresStore) DeleteAccount(id int) error {
 	query := `
-    delete  from accounts where id=$1
+    delete  from accounts where telegram_id=$1
     `
 	_, err := s.db.Exec(query, id)
 	return err

@@ -2,17 +2,20 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type Bot struct {
-	api   *tgbotapi.BotAPI
-	store Storage
+	api      *tgbotapi.BotAPI
+	store    Storage
+	cmdViews map[string]CmdViewFunc
 }
+type CmdViewFunc func(context.Context, *Bot, tgbotapi.Update) error
 
 func NewBot(store *PostgresStore) (*Bot, error) {
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("BOT_TOKEN"))
@@ -25,59 +28,52 @@ func NewBot(store *PostgresStore) (*Bot, error) {
 	}, nil
 }
 
-func (b *Bot) Init(ctx context.Context) {
+func (b *Bot) Run(ctx context.Context) error {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
 	updates := b.api.GetUpdatesChan(u)
-
-	for update := range updates {
-		if update.Message == nil { // ignore any non-Message updates
-			continue
-		}
-
-		if !update.Message.IsCommand() { // ignore any non-command Messages
-			continue
-		}
-
-		// Create a new MessageConfig. We don't have text yet,
-		// so we leave it empty.
-		answerMsg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-		msg := update.Message
-
-		// Extract the command from the Message.
-		switch update.Message.Command() {
-		case "register":
-			m, err := b.RegisterNewAccount(ctx, msg)
-			if err != nil {
-				answerMsg.Text = fmt.Sprintf("Error occured while register new user, %+v", err)
-			} else {
-				answerMsg.Text = m
-			}
-		case "addTeam":
-			answerMsg.Text = fmt.Sprintf("Team %s added.", answerMsg.Text)
-		case "deleteTeam":
-			answerMsg.Text = fmt.Sprintf("Team %s deleted.", answerMsg.Text)
-		default:
-			answerMsg.Text = "I don't know that command"
-		}
-
-		if _, err := b.api.Send(answerMsg); err != nil {
-			log.Panic(err)
+	for {
+		select {
+		case update := <-updates:
+			updateCtx, updateCancel := context.WithTimeout(ctx, time.Second*5)
+			b.handleUpdate(updateCtx, update)
+			updateCancel()
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
 }
 
-func (b *Bot) RegisterNewAccount(ctx context.Context, msg *tgbotapi.Message) (string, error) {
-	account := &Account{TelegramId: int(msg.From.ID)}
-	err := b.store.CreateAccount(ctx, account)
-	if err != nil {
-		return "", err
+func (b *Bot) RegisterNewCommand(name string, cmd CmdViewFunc) {
+	if b.cmdViews == nil {
+		b.cmdViews = make(map[string]CmdViewFunc)
 	}
-
-	return "New account registered!", nil
+	b.cmdViews[name] = cmd
 }
 
-func (b *Bot) DeleteAccount(ctx context.Context, msg *tgbotapi.Message) error {
-	return nil
+func (b *Bot) handleUpdate(ctx context.Context, update tgbotapi.Update) {
+	defer func() {
+		if p := recover(); p != nil {
+			log.Printf("[ERROR] panic recovered: %v\n%s", p, string(debug.Stack()))
+		}
+	}()
+	if update.Message == nil {
+		return
+	}
+	if !update.Message.IsCommand() {
+		return
+	}
+	cmd := update.Message.Command()
+	cmdView, ok := b.cmdViews[cmd]
+	if !ok {
+		return
+	}
+	if err := cmdView(ctx, b, update); err != nil {
+		log.Printf("[ERROR] failed to execute view: %v", err)
+
+		if _, err := b.api.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Internal error")); err != nil {
+			log.Printf("[ERROR] failed to send error message: %v", err)
+		}
+	}
 }

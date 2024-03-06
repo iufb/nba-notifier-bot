@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"log"
-	// "os"
-	// "os/signal"
-	// "syscall"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/joho/godotenv"
 )
@@ -26,9 +26,14 @@ func main() {
 		log.Printf("[ERROR] failed to create botAPI: %v", err)
 		return
 	}
-	bot.api.Debug = true
-	// ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	// defer cancel()
-	ctx := context.Background()
-	bot.Init(ctx)
+	bot.RegisterNewCommand("register", RegisterNewAccount)
+	bot.RegisterNewCommand("delete", DeleteAccount)
+	bot.RegisterNewCommand("add", AddTeamToFavourite)
+	// bot.api.Debug = true
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	err = bot.Run(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
