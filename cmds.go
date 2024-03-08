@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -17,20 +18,17 @@ func includesStr(arr []string, value string) bool {
 	return false
 }
 
-func addNewTeamKeyboard() tgbotapi.InlineKeyboardMarkup {
+func addNewTeamKeyboard(cmd string, teamsList []*Team) tgbotapi.InlineKeyboardMarkup {
 	var keyboard tgbotapi.InlineKeyboardMarkup
 	const TEAMS_PER_ROW = 5
 	for i := 0; i < len(teamsList); i += TEAMS_PER_ROW {
-		if teamsList[i].Abbr == "ATL" {
-			continue
-		}
 		end := i + TEAMS_PER_ROW
 		if end > len(teamsList) {
 			end = len(teamsList)
 		}
 		var row []tgbotapi.InlineKeyboardButton
 		for _, item := range teamsList[i:end] {
-			row = append(row, tgbotapi.NewInlineKeyboardButtonData(item.Abbr, item.Abbr))
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(item.Abbr, fmt.Sprintln(item.Abbr, cmd)))
 		}
 		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
 	}
@@ -49,7 +47,7 @@ func RegisterNewAccount(ctx context.Context, b *Bot, update tgbotapi.Update) err
 }
 
 func DeleteAccount(ctx context.Context, b *Bot, update tgbotapi.Update) error {
-	err := b.store.DeleteAccount(int(update.Message.From.ID))
+	err := b.store.DeleteAccount(ctx, int(update.Message.From.ID))
 	if err != nil {
 		return err
 	}
@@ -57,31 +55,84 @@ func DeleteAccount(ctx context.Context, b *Bot, update tgbotapi.Update) error {
 	return err
 }
 
-var numericKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonURL("1.com", "http://1.com"),
-		tgbotapi.NewInlineKeyboardButtonData("2", "2"),
-		tgbotapi.NewInlineKeyboardButtonData("3", "3"),
-	),
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("4", "4"),
-		tgbotapi.NewInlineKeyboardButtonData("5", "5"),
-		tgbotapi.NewInlineKeyboardButtonData("6", "6"),
-	),
-)
-
 func AddTeamToFavourite(ctx context.Context, b *Bot, update tgbotapi.Update) error {
-	receivedMsg := update.Message.Text
-	cmd := strings.Split(receivedMsg, " ")
-	fmt.Println(cmd)
-	if len(cmd) != 2 {
-		b.api.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid command type : example - /addTeam GSW"))
-		return fmt.Errorf("Invalid command %s :", receivedMsg)
+	if update.CallbackQuery == nil {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Choose team:")
+		msg.ReplyMarkup = addNewTeamKeyboard("addTeam", teamsList)
+		_, err := b.api.Send(msg)
+		if err != nil {
+			return err
+		}
+	} else {
+		data := strings.Split(update.CallbackQuery.Data, " ")[0]
+		callback := tgbotapi.NewCallback(update.CallbackQuery.ID, data)
+		if _, err := b.api.Request(callback); err != nil {
+			return err
+		}
+		err := b.store.AddTeamToFavourite(ctx, int(update.CallbackQuery.From.ID), data)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+
+		// And finally, send a message containing the data received.
+		msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, fmt.Sprintln("Team", data, "added."))
+		if _, err := b.api.Send(msg); err != nil {
+			return err
+		}
 	}
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintln("Team", cmd[1], "added"))
-	_, err := b.api.Send(msg)
-	if err != nil {
-		return err
-	}
+
 	return nil
+}
+
+func DeleteTeamFromFavourite(ctx context.Context, b *Bot, update tgbotapi.Update) error {
+	if update.CallbackQuery == nil {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Choose team to delete:")
+		teams, err := b.store.GetAccountFavouriteTeams(ctx, int(update.Message.From.ID))
+		if err != nil {
+			return err
+		}
+		msg.ReplyMarkup = addNewTeamKeyboard("deleteTeam", teams)
+		_, err = b.api.Send(msg)
+		if err != nil {
+			return err
+		}
+	} else {
+		data := strings.Split(update.CallbackQuery.Data, " ")[0]
+		callback := tgbotapi.NewCallback(update.CallbackQuery.ID, data)
+		if _, err := b.api.Request(callback); err != nil {
+			return err
+		}
+		err := b.store.DeleteTeamFromFavourite(ctx, int(update.CallbackQuery.From.ID), data)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+
+		// And finally, send a message containing the data received.
+		msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, fmt.Sprintln("Team", data, "deleted."))
+		if _, err := b.api.Send(msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func SendSchedule(ctx context.Context, b *Bot, telegramId int) error {
+	teams, err := b.store.GetAccountFavouriteTeams(ctx, telegramId)
+	var schedule string
+	for _, team := range teams {
+		s, err := b.store.GetSchedule(ctx, team.Abbr)
+		if err != nil {
+			continue
+		}
+		schedule += fmt.Sprintln(s.team, s.date.Format("2006-01-02 15:04:05"), s.ot, "\n")
+	}
+	if len(schedule) == 0 {
+		schedule = "No matches for your favourite teams tomorrow."
+	}
+
+	_, err = b.api.Send(tgbotapi.NewMessage(int64(telegramId), schedule))
+	return err
 }

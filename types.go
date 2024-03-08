@@ -17,11 +17,12 @@ type Team struct {
 }
 
 type Schedule struct {
+	team string
 	date time.Time
-	ot   Team
+	ot   string
 }
 
-var teamsList = [30]Team{
+var teamsList = []*Team{
 	{Name: "Atlanta Hawks", Abbr: "ATL"},
 	{Name: "Boston Celtics", Abbr: "BOS"},
 	{Name: "Brooklyn Nets", Abbr: "BKN"},

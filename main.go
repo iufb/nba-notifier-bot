@@ -28,7 +28,8 @@ func main() {
 	}
 	bot.RegisterNewCommand("register", RegisterNewAccount)
 	bot.RegisterNewCommand("delete", DeleteAccount)
-	bot.RegisterNewCommand("add", AddTeamToFavourite)
+	bot.RegisterNewCommand("addTeam", AddTeamToFavourite)
+	bot.RegisterNewCommand("deleteTeam", DeleteTeamFromFavourite)
 	// bot.api.Debug = true
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
