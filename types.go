@@ -14,6 +14,7 @@ type Account struct {
 type Team struct {
 	Name string `json:"name"`
 	Abbr string `json:"abbr"`
+	Url  string
 }
 
 type Schedule struct {

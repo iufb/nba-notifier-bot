@@ -48,6 +48,7 @@ func (b *Bot) Run(ctx context.Context) error {
 }
 
 func (b *Bot) SendNotification(ctx context.Context) {
+	log.Println("Func exec")
 	targetTime := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 22, 0, 0, 0, time.Local)
 	accounts, err := b.store.GetAccounts(ctx)
 	if err != nil {
@@ -65,12 +66,12 @@ func (b *Bot) SendNotification(ctx context.Context) {
 				for _, acc := range accounts {
 					err := SendSchedule(ctx, b, acc.TelegramId)
 					if err != nil {
-						log.Println(err)
+						log.Println("Error while sending schedule : ", err)
 					}
 
 				}
+				time.Sleep(time.Hour * 1)
 			}
-			time.Sleep(time.Hour)
 		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -123,11 +124,9 @@ func SendSchedule(ctx context.Context, b *Bot, telegramId int) error {
 	teams, err := b.store.GetAccountFavouriteTeams(ctx, telegramId)
 	var schedule string
 	for _, team := range teams {
-		s, err := b.store.GetSchedule(ctx, team.Abbr)
-		if err != nil {
-			continue
-		}
-		schedule += fmt.Sprintln(s.team, s.date.Format("2006-01-02 15:04:05"), s.ot, "\n")
+		s := Scrapper(team.Url)
+		withTimezone := s.date.Add(time.Hour * 9)
+		schedule += fmt.Sprintln(team.Abbr, withTimezone.Month(), withTimezone.Day(), ",", withTimezone.Hour(), ":", withTimezone.Minute(), s.ot, "\n")
 	}
 	if len(schedule) == 0 {
 		schedule = "No matches for your favourite teams tomorrow."

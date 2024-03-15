@@ -126,7 +126,7 @@ func (s *PostgresStore) DeleteTeamFromFavourite(ctx context.Context, telegramId 
 
 func (s *PostgresStore) GetAccountFavouriteTeams(ctx context.Context, telegramId int) ([]*Team, error) {
 	query := `
-    select name, abbr from account_teams join teams on account_teams.team_abbr = teams.abbr where telegram_id=$1`
+    select name, abbr, url from account_teams join teams on account_teams.team_abbr = teams.abbr where telegram_id=$1`
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -139,7 +139,7 @@ func (s *PostgresStore) GetAccountFavouriteTeams(ctx context.Context, telegramId
 	teams := []*Team{}
 	for rows.Next() {
 		team := &Team{}
-		err := rows.Scan(&team.Name, &team.Abbr)
+		err := rows.Scan(&team.Name, &team.Abbr, &team.Url)
 		if err != nil {
 			return nil, err
 		}
