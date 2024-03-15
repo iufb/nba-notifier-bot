@@ -49,7 +49,7 @@ func (b *Bot) Run(ctx context.Context) error {
 
 func (b *Bot) SendNotification(ctx context.Context) {
 	log.Println("Func exec")
-	targetTime := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 22, 0, 0, 0, time.Local)
+	targetTime := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 22, 26, 0, 0, time.Local)
 	accounts, err := b.store.GetAccounts(ctx)
 	if err != nil {
 		log.Println("No registered account found.")
