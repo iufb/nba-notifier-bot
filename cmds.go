@@ -127,7 +127,7 @@ func SendSchedule(ctx context.Context, b *Bot, telegramId int) error {
 		s := Scrapper(team.Url)
 		withTimezone := s.date.Add(time.Hour * 9)
 		if time.Now().Add(time.Hour*24).Day() == withTimezone.Day() {
-			schedule += fmt.Sprintln(team.Abbr, withTimezone.Month(), withTimezone.Day(), ",", withTimezone.Hour(), ":", withTimezone.Minute(), s.ot, "\n")
+			schedule = fmt.Sprint(team.Abbr, withTimezone.Month(), withTimezone.Day(), ",", withTimezone.Hour(), ":", withTimezone.Minute(), s.ot, "\n")
 		}
 	}
 	if len(schedule) == 0 {
