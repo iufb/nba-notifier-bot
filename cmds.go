@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -18,7 +19,20 @@ func includesStr(arr []string, value string) bool {
 	return false
 }
 
-func addNewTeamKeyboard(cmd string, teamsList []*Team) tgbotapi.InlineKeyboardMarkup {
+func GetTimeWithTimezone(s *ScheduleSc, offset int, team string) string {
+	var res string
+	withTimezone := s.date.Add(time.Hour * time.Duration(offset))
+	var minutes string
+	if withTimezone.Minute() == 0 {
+		minutes = fmt.Sprintln("00")
+	} else {
+		minutes = fmt.Sprintln(s.date.Minute())
+	}
+	res = fmt.Sprint("*", team, "*", "\n", withTimezone.Month(), withTimezone.Day(), ", ", withTimezone.Hour(), ":", minutes, "\n", "*", s.ot, "*")
+	return res
+}
+
+func CreateTeamsKeyboard(cmd string, teamsList []*Team) tgbotapi.InlineKeyboardMarkup {
 	var keyboard tgbotapi.InlineKeyboardMarkup
 	const TEAMS_PER_ROW = 5
 	for i := 0; i < len(teamsList); i += TEAMS_PER_ROW {
@@ -58,7 +72,7 @@ func DeleteAccount(ctx context.Context, b *Bot, update tgbotapi.Update) error {
 func AddTeamToFavourite(ctx context.Context, b *Bot, update tgbotapi.Update) error {
 	if update.CallbackQuery == nil {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Choose team:")
-		msg.ReplyMarkup = addNewTeamKeyboard("addTeam", teamsList)
+		msg.ReplyMarkup = CreateTeamsKeyboard("addTeam", teamsList)
 		_, err := b.api.Send(msg)
 		if err != nil {
 			return err
@@ -92,7 +106,10 @@ func DeleteTeamFromFavourite(ctx context.Context, b *Bot, update tgbotapi.Update
 		if err != nil {
 			return err
 		}
-		msg.ReplyMarkup = addNewTeamKeyboard("deleteTeam", teams)
+		if len(teams) == 0 {
+			return fmt.Errorf("No favourite teams found.")
+		}
+		msg.ReplyMarkup = CreateTeamsKeyboard("deleteTeam", teams)
 		_, err = b.api.Send(msg)
 		if err != nil {
 			return err
@@ -119,15 +136,48 @@ func DeleteTeamFromFavourite(ctx context.Context, b *Bot, update tgbotapi.Update
 	return nil
 }
 
+func GetNearestGame(ctx context.Context, b *Bot, update tgbotapi.Update) error {
+	if update.CallbackQuery == nil {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Choose team:")
+		msg.ReplyMarkup = CreateTeamsKeyboard("ng", teamsList)
+		_, err := b.api.Send(msg)
+		if err != nil {
+			return err
+		}
+	} else {
+		data := strings.Split(update.CallbackQuery.Data, " ")[0]
+		callback := tgbotapi.NewCallback(update.CallbackQuery.ID, data)
+		if _, err := b.api.Request(callback); err != nil {
+			return err
+		}
+		var schedule string
+		teamUrl, err := b.store.GetTeamUrl(ctx, data)
+		if err != nil {
+			return err
+		}
+		s := Scrapper(teamUrl)
+		schedule = GetTimeWithTimezone(&s, 9, data)
+
+		// And finally, send a message containing the data received.
+		msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, schedule)
+		msg.ParseMode = "MarkdownV2"
+		if _, err := b.api.Send(msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func SendSchedule(ctx context.Context, b *Bot, telegramId int) error {
 	teams, err := b.store.GetAccountFavouriteTeams(ctx, telegramId)
 	var schedule string
 	for _, team := range teams {
-		s, err := b.store.GetSchedule(ctx, team.Abbr)
-		if err != nil {
-			continue
+		s := Scrapper(team.Url)
+		withTimezone := s.date.Add(time.Hour * 9)
+		if time.Now().Add(time.Hour*24).Day() == withTimezone.Day() {
+			schedule += fmt.Sprint(team.Abbr, withTimezone.Month(), withTimezone.Day(), ",", withTimezone.Hour(), ":", withTimezone.Minute(), s.ot, "\n")
 		}
-		schedule += fmt.Sprintln(s.team, s.date.Format("2006-01-02 15:04:05"), s.ot, "\n")
 	}
 	if len(schedule) == 0 {
 		schedule = "No matches for your favourite teams tomorrow."

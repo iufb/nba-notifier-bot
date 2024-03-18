@@ -12,10 +12,10 @@ type Storage interface {
 	CreateAccount(context.Context, *Account) error
 	GetAccounts(context.Context) ([]*Account, error)
 	DeleteAccount(context.Context, int) error
+	GetTeamUrl(context.Context, string) (string, error)
 	AddTeamToFavourite(context.Context, int, string) error
 	DeleteTeamFromFavourite(context.Context, int, string) error
 	GetAccountFavouriteTeams(context.Context, int) ([]*Team, error)
-	GetSchedule(context.Context, string) (*Schedule, error)
 }
 
 type PostgresStore struct {
@@ -91,6 +91,30 @@ func (s *PostgresStore) DeleteAccount(ctx context.Context, id int) error {
 	return err
 }
 
+func (s *PostgresStore) GetTeamUrl(ctx context.Context, abbr string) (string, error) {
+	query := `
+    select url from teams where abbr=$1
+    `
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+	rows, err := conn.QueryContext(ctx, query, abbr)
+	if err != nil {
+		return "", err
+	}
+
+	var url string
+	for rows.Next() {
+		err := rows.Scan(&url)
+		if err != nil {
+			return "", err
+		}
+	}
+	return url, nil
+}
+
 func (s *PostgresStore) AddTeamToFavourite(ctx context.Context, telegramId int, abbr string) error {
 	query := `
 INSERT INTO account_teams(telegram_id,team_abbr)
@@ -146,23 +170,4 @@ func (s *PostgresStore) GetAccountFavouriteTeams(ctx context.Context, telegramId
 		teams = append(teams, team)
 	}
 	return teams, nil
-}
-
-func (s *PostgresStore) GetSchedule(ctx context.Context, name string) (*Schedule, error) {
-	query := `
-SELECT * FROM schedule WHERE DATE(game_date) = DATE(CURRENT_TIMESTAMP) + 1 AND team_abbr = $1;
-    `
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-	row := conn.QueryRowContext(ctx, query, name)
-
-	schedule := &Schedule{}
-	err = row.Scan(&schedule.team, &schedule.date, &schedule.ot)
-	if err != nil {
-		return nil, err
-	}
-	return schedule, nil
 }

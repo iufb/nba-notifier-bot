@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"runtime/debug"
@@ -91,7 +92,7 @@ func (b *Bot) ExecCommand(ctx context.Context, update tgbotapi.Update, cmdName s
 	if err := cmdView(ctx, b, update); err != nil {
 		log.Printf("[ERROR] failed to execute view: %v", err)
 
-		if _, err := b.api.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Internal error")); err != nil {
+		if _, err := b.api.Send(tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintln("[ERROR]:", err))); err != nil {
 			log.Printf("[ERROR] failed to send error message: %v", err)
 		}
 	}
