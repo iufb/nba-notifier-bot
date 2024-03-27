@@ -49,6 +49,7 @@ func (b *Bot) Run(ctx context.Context) error {
 }
 
 func (b *Bot) SendNotification(ctx context.Context) {
+	log.Println("SEND NOT BOT FUNC")
 	targetTime := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 22, 0, 0, 0, time.Local)
 	accounts, err := b.store.GetAccounts(ctx)
 	if err != nil {
@@ -62,8 +63,10 @@ func (b *Bot) SendNotification(ctx context.Context) {
 		default:
 			currentTime := time.Now()
 			if currentTime.After(targetTime) {
+				log.Println("INSIDE FOR")
 				targetTime = targetTime.Add(24 * time.Hour)
 				for _, acc := range accounts {
+					log.Println("")
 					err := SendSchedule(ctx, b, acc.TelegramId)
 					if err != nil {
 						log.Println(err)
@@ -71,7 +74,7 @@ func (b *Bot) SendNotification(ctx context.Context) {
 
 				}
 			}
-			time.Sleep(time.Hour)
+			time.Sleep(time.Second)
 		}
 	}
 }

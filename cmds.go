@@ -28,11 +28,11 @@ func GetTimeWithTimezone(s *ScheduleSc, offset int, team string) string {
 	} else {
 		minutes = fmt.Sprintln(s.date.Minute())
 	}
-	res = fmt.Sprint("*", team, "*", "\n", withTimezone.Month(), withTimezone.Day(), ", ", withTimezone.Hour(), ":", minutes, "\n", "*", s.ot, "*")
+	res = fmt.Sprint("*", team, "*", "\n", withTimezone.Month(), withTimezone.Day(), ", ", withTimezone.Hour(), ":", minutes, "\n", "*", s.ot, "*", "\n\n")
 	return res
 }
 
-func CreateTeamsKeyboard(cmd string, teamsList []*Team) tgbotapi.InlineKeyboardMarkup {
+func CreateTeamsKeyboard(cmd string, teamsList []Team) tgbotapi.InlineKeyboardMarkup {
 	var keyboard tgbotapi.InlineKeyboardMarkup
 	const TEAMS_PER_ROW = 5
 	for i := 0; i < len(teamsList); i += TEAMS_PER_ROW {
@@ -155,7 +155,10 @@ func GetNearestGame(ctx context.Context, b *Bot, update tgbotapi.Update) error {
 		if err != nil {
 			return err
 		}
-		s := Scrapper(teamUrl)
+		s, err := Scrapper(teamUrl)
+		if err != nil {
+			return err
+		}
 		schedule = GetTimeWithTimezone(&s, 9, data)
 
 		// And finally, send a message containing the data received.
@@ -171,18 +174,25 @@ func GetNearestGame(ctx context.Context, b *Bot, update tgbotapi.Update) error {
 
 func SendSchedule(ctx context.Context, b *Bot, telegramId int) error {
 	teams, err := b.store.GetAccountFavouriteTeams(ctx, telegramId)
+	log.Println("EXEC")
 	var schedule string
 	for _, team := range teams {
-		s := Scrapper(team.Url)
-		withTimezone := s.date.Add(time.Hour * 9)
-		if time.Now().Add(time.Hour*24).Day() == withTimezone.Day() {
-			schedule += fmt.Sprint(team.Abbr, withTimezone.Month(), withTimezone.Day(), ",", withTimezone.Hour(), ":", withTimezone.Minute(), s.ot, "\n")
+		s, err := Scrapper(team.Url)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		withTimezone := GetTimeWithTimezone(&s, 9, team.Abbr)
+		if time.Now().Day()+1 == s.date.Add(time.Hour*time.Duration(9)).Day() {
+			schedule += withTimezone
 		}
 	}
 	if len(schedule) == 0 {
 		schedule = "No matches for your favourite teams tomorrow."
 	}
-
-	_, err = b.api.Send(tgbotapi.NewMessage(int64(telegramId), schedule))
+	msg := tgbotapi.NewMessage(int64(telegramId), schedule)
+	msg.ParseMode = "MarkdownV2"
+	_, err = b.api.Send(msg)
 	return err
 }

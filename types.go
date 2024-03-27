@@ -23,7 +23,7 @@ type Schedule struct {
 	ot   string
 }
 
-var teamsList = []*Team{
+var teamsList = []Team{
 	{Name: "Atlanta Hawks", Abbr: "ATL"},
 	{Name: "Boston Celtics", Abbr: "BOS"},
 	{Name: "Brooklyn Nets", Abbr: "BKN"},

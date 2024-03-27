@@ -1,0 +1,10 @@
+version: "3"
+services:
+  manga-nest:
+    image: nba-not:latest
+    container_name: nba-not
+    restart: always
+    ports:
+      - "3003:3003"
+    volumes:
+      - "./.env:/app/.env"

@@ -26,7 +26,7 @@ func TimeParser(timeStr string) time.Time {
 	return d
 }
 
-func Scrapper(url string) ScheduleSc {
+func Scrapper(url string) (ScheduleSc, error) {
 	c := colly.NewCollector()
 	s := []ScheduleSc{}
 
@@ -57,6 +57,10 @@ func Scrapper(url string) ScheduleSc {
 
 		s = append(s, t)
 	})
+	log.Println(s, "Scrapper")
 	c.Visit(url)
-	return s[len(s)-1]
+	if len(s) == 0 {
+		return ScheduleSc{}, fmt.Errorf("No game found.")
+	}
+	return s[len(s)-1], nil
 }
